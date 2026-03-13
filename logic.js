@@ -267,24 +267,33 @@ function updateExam(id, newData) {
 const API_URL = API_BASE_URL + "/api/data";
 
 async function saveToBackend() {
+    console.log("Sunucuya kaydediliyor...", API_URL);
     try {
+        const payload = JSON.stringify(DB);
+        const secret = sessionStorage.getItem('userPassword') || '';
+        
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-api-secret': sessionStorage.getItem('userPassword') || '' // Giriş sırasında kaydedilen şifre
+                'x-api-secret': secret
             },
-            body: JSON.stringify(DB)
+            body: payload
         });
 
         if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error || "Sunucu hatası");
+            const err = await response.json().catch(() => ({ error: "Sunucu geçerli bir JSON dönmedi" }));
+            throw new Error(err.error || `Sunucu hatası: ${response.status}`);
         }
         console.log("Sunucuya başarıyla kaydedildi.");
     } catch (e) {
-        console.error("Backend kayit hatasi:", e);
-        alert("🚨 Veriler sunucuya kaydedilemedi!\nSadece bu bilgisayara (geçici olarak) kaydedildi: " + e.message);
+        console.error("Backend kayit hatasi DETAY:", {
+            error: e,
+            message: e.message,
+            stack: e.stack,
+            apiUrl: API_URL
+        });
+        alert("🚨 Veriler sunucuya kaydedilemedi!\n" + e.message);
     }
 }
 
@@ -300,20 +309,29 @@ function saveToLocalStorage() {
 
 async function loadFromDataJSON() {
     try {
+        console.log("Veriler sunucudan yükleniyor...", API_URL);
         const response = await fetch(API_URL + '?t=' + new Date().getTime());
-        if (!response.ok) throw new Error("Ağ hatası");
+        if (!response.ok) throw new Error(`Ağ hatası: ${response.status}`);
         const data = await response.json();
         
-        DB = data;
-        
-        // Veriyi lokal hafızaya (cache) alalım — ama saveToLocalStorage() DEĞİL,
-        // çünkü o saveToBackend()'i tetikler ve az önce sunucudan aldığımız veriyi gereksiz yere geri gönderir.
-        localStorage.setItem(DB_KEY, JSON.stringify(DB));
+        if (data && typeof data === 'object' && Array.isArray(data.staff)) {
+            DB = data;
+            // Veriyi lokal hafızaya (cache) alalım
+            localStorage.setItem(DB_KEY, JSON.stringify(DB));
+            console.log("Veriler başarıyla yüklendi.");
+        } else {
+            console.error("Sunucudan gelen veri geçersiz formatta!", data);
+            throw new Error("Geçersiz veri formatı");
+        }
     } catch (e) {
         console.warn("API başarıyla okunamadı, localStorage kullanılarak deneniyor...", e);
         const saved = localStorage.getItem(DB_KEY);
         if (saved) {
-            DB = JSON.parse(saved);
+            try {
+                DB = JSON.parse(saved);
+            } catch (parseError) {
+                console.error("LocalStorage verisi bozuk!", parseError);
+            }
         } else {
             console.error("Hiçbir veri bulunamadı! Lütfen backendin çalıştığından emin olun.");
         }
