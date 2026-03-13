@@ -272,11 +272,15 @@ async function saveToBackend() {
         const payload = JSON.stringify(DB);
         const secret = sessionStorage.getItem('userPassword') || '';
         
+        // Header değerleri sadece ISO-8859-1 (latin1) karakterleri içerebilir.
+        // Şifre Türkçe karakter içeriyorsa fetch hata verir. Bu yüzden Base64 ile gönderiyoruz.
+        const encodedSecret = btoa(unescape(encodeURIComponent(secret)));
+
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-api-secret': secret
+                'x-api-secret': encodedSecret
             },
             body: payload
         });
