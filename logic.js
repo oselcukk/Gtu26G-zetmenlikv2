@@ -196,7 +196,17 @@ function autoResolveConflicts() {
 
 
 function addExam(examData) {
-    const proctor = findBestProctor(examData.date, examData.time, examData.duration);
+    let proctor = null;
+
+    // Eğer kullanıcı manuel olarak bir öneri seçtiyse onu kullan
+    if (window.selectedProctorId) {
+        proctor = DB.staff.find(s => s.id === window.selectedProctorId);
+        // Seçimden sonra temizle
+        window.selectedProctorId = null;
+    } else {
+        proctor = findBestProctor(examData.date, examData.time, examData.duration);
+    }
+
     if (!proctor) {
         alert("Bu tarih ve saatte müsait bir gözetmen bulunamadı!");
         return;
