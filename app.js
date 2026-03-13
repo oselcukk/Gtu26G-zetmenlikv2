@@ -248,13 +248,23 @@ function initUI() {
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = (event) => {
+                reader.onload = async (event) => {
                     try {
                         const importedDB = JSON.parse(event.target.result);
                         if (importedDB && importedDB.staff && importedDB.exams) {
                             if (confirm("Mevcut tüm veriler silinecek ve seçilen yedeğe dönülecek. Onaylıyor musunuz?")) {
                                 DB = importedDB;
                                 saveToLocalStorage();
+                                
+                                // Admin girişi ise reload öncesi sunucuya yazmayı BEKLE (reload işlemi fetch'i iptal etmesin diye)
+                                if (sessionStorage.getItem('isAdmin') === 'true') {
+                                    try {
+                                        await saveToBackend();
+                                    } catch(e) {
+                                        console.error("Yedek sunucuya gönderilirken hata oluştu:", e);
+                                    }
+                                }
+                                
                                 location.reload();
                             }
                         } else {
