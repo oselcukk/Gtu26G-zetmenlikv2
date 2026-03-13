@@ -109,10 +109,18 @@ function isProctorTrulyFree(staffId, date, time, duration, ignoreExamId = null) 
 function findBestProctor(dateStr, timeStr, duration, ignoreExamId = null) {
     if (DB.staff.length === 0) return null;
 
-    const available = DB.staff.filter(s =>
+    let available = DB.staff.filter(s =>
         isProctorTrulyFree(s.id, dateStr, timeStr, duration, ignoreExamId) &&
         (s.taskCount || 0) < GLOBAL_LIMITS.MAX_TASKS
     );
+
+    // Eğer MAX_TASKS (7) sınırına herkes ulaştığı için müsait kimse kalmadıysa, bu sınırı esnet. 
+    // Böylece test ortamında veya yoğun haftalarda "müsait gözetmen bulunamadı" hatası almayız.
+    if (available.length === 0) {
+        available = DB.staff.filter(s =>
+            isProctorTrulyFree(s.id, dateStr, timeStr, duration, ignoreExamId)
+        );
+    }
 
     if (available.length === 0) return null;
 
@@ -473,6 +481,9 @@ function getRecommendedProctors(date, time, duration, currentExamId = null) {
  */
 function resetExamsButKeepScores() {
     DB.exams = [];
+    DB.staff.forEach(s => {
+        s.taskCount = 0;
+    });
     saveToLocalStorage();
 }
 
