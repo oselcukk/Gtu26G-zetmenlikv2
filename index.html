@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gözetmenlik Sistemi | Adil Dağıtım</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head><body>
+    <!-- Giriş Ekranı (Login Overlay) -->
+    <div id="login-overlay" class="login-overlay">
+        <div class="login-card">
+            <div class="login-header">
+                <span class="login-icon">🔒</span>
+                <h2>Gözetmenlik Sistemi</h2>
+                <p>Lütfen devam etmek için şifreyi girin</p>
+            </div>
+            <div class="login-form">
+                <input type="password" id="login-password" placeholder="Şifre" autofocus>
+                <button id="btn-login" class="btn-primary" style="width: 100%; margin-top: 1rem;">Giriş Yap</button>
+                <p id="login-error" class="login-error hidden">Hatalı şifre, lütfen tekrar deneyin.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container" id="app-wrapper" style="display: none;">
+        <header>
+            <div class="logo">
+                <span class="icon">⚖️</span>
+                <h1>Gözetmenlik <span>Katsayı Sistemi</span></h1>
+            </div>
+            <nav>
+                <button id="btn-dashboard" class="active">Panel</button>
+                <button id="btn-schedule">Sınav Programı</button>
+                <button id="btn-exams">Sınavlar</button>
+                <button id="btn-staff">Personel</button>
+                <button id="btn-availability">Müsaitlik</button>
+                <button id="btn-constraints" class="admin-only">Kısıt Yönetimi</button>
+            </nav>
+        </header>
+
+        <main id="main-content">
+            <!-- Dashboard Section -->
+            <section id="section-dashboard" class="content-section">
+                <div class="section-header" style="display: flex; align-items: center; justify-content: space-between;">
+                    <h2>Puan Dağılımı ve Sıralama</h2>
+                    <div style="display:flex; gap:10px;">
+                        <button id="btn-backup-system" class="btn-primary admin-only" style="background:#4b5563;">💾 Yedekle (JSON)</button>
+                        <button id="id-restore-system" class="btn-primary admin-only" style="background:#6b7280;">📂 Geri Yükle</button>
+                        <button id="btn-reset-exams" class="btn-primary admin-only" style="background:#f59e0b;">🧹 Programı Sıfırla (Puanlar Kalsın)</button>
+                        <button id="btn-resolve-conflicts" class="btn-primary admin-only" style="background:#ef4444;">⚠️ Çakışmaları Otomatik Çöz</button>
+                        <button id="btn-export-dashboard" class="btn-primary" style="background:#28a745;">Resim İndir</button>
+                        <button id="btn-github-sync" class="btn-primary" style="background:#6366f1;">🔗 GitHub Kod Üret</button>
+                    </div>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Toplam Sınav</h3>
+                        <p id="stat-total-exams">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Personel Sayısı</h3>
+                        <p id="stat-total-staff">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Ortalama Puan</h3>
+                        <p id="stat-avg-score">0</p>
+                    </div>
+                </div>
+
+                <div id="dashboard-export-container" style="background: var(--bg-main); padding: 1rem; border-radius: 12px;">
+                    <div class="card-large" style="margin-bottom: 2rem;">
+                        <h3 style="margin-bottom: 1.5rem; color: var(--text-muted); font-size: 0.875rem; text-transform: uppercase;">Gözetmen Puan Analiz Grafiği</h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="scoreChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card-large">
+                        <div class="table-container">
+                            <table id="table-ranking">
+                                <thead>
+                                    <tr>
+                                        <th>Sıra</th>
+                                        <th>İsim Soyisim</th>
+                                        <th>Toplam Puan</th>
+                                        <th>Görev Sayısı</th>
+                                        <th>Durum</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dinamik olarak dolacak -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Staff Section -->
+            <section id="section-staff" class="content-section hidden">
+                <div class="section-header" style="display: flex; align-items: center; justify-content: space-between;">
+                    <h2>Personel Listesi</h2>
+                    <div>
+                        <button class="btn-primary admin-only" id="btn-add-staff">+ Yeni Personel</button>
+                        <button id="btn-import-excel" class="btn-primary admin-only" style="background:#1d6f42; margin-left: 10px;">Excel’den İçe Aktar</button>
+                        <button id="btn-export-staff" class="btn-primary" style="background:#28a745; margin-left: 10px;">Resim İndir</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="table-staff">
+                        <thead>
+                            <tr>
+                                <th>İsim Soyisim</th>
+                                <th>Toplam Puan</th>
+                                <th>Görev Sayısı</th>
+                                <th class="admin-only">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Exams Section -->
+            <section id="section-exams" class="content-section hidden">
+                <div class="section-header" style="display: flex; align-items: center; justify-content: space-between;">
+                    <h2>Sınav Listesi</h2>
+                    <div>
+                        <button id="btn-add-exam" class="btn-primary admin-only">+ Yeni Sınav</button>
+                        <button id="btn-import-auto-assign" class="btn-primary admin-only" style="background:#6366f1; margin-left: 10px;">✨ Taslak Liste Yükle (Otomatik Ata)</button>
+                        <button id="btn-export-exams" class="btn-primary" style="background:#28a745; margin-left: 10px;">Resim İndir</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="table-exams">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-sort="name">Ders / Sınav <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="location">Derslik / Mevcut <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="date">Tarih <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="time">Saat <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="duration">Süre (dk) <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="katsayi">Katsayı <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="score">Puan <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="proctorName">Gözetmen <span class="sort-icon"></span></th>
+                                <th class="admin-only">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Schedule Section -->
+            <section id="section-schedule" class="content-section hidden">
+                <div class="section-header" style="display: flex; align-items: center; justify-content: space-between;">
+                    <h2>Genel Sınav Programı</h2>
+                    <div>
+                        <button id="btn-export-schedule-excel" class="btn-primary" style="background:#1d6f42; margin-right: 10px;">Excel İndir</button>
+                        <button id="btn-export-schedule" class="btn-primary" style="background:#28a745;">Resim İndir</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="table-schedule">
+                        <thead>
+                            <tr>
+                                <th>Ders / Sınav</th>
+                                <th>Derslik / Yer</th>
+                                <th>Tarih</th>
+                                <th>Saat</th>
+                                <th>Süre (dk)</th>
+                                <th>Gözetmenler</th>
+                                <th class="admin-only">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Müsaitlik Takvimi Section -->
+            <section id="section-availability" class="content-section hidden">
+                <div class="section-header" style="display: flex; align-items: center; justify-content: space-between;">
+                    <h2>Gözetmen Müsaitlik Takvimi</h2>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label style="color: var(--text-muted); font-size: 0.875rem;">Tarih Seçin:</label>
+                        <input type="date" id="availability-date" style="background: rgba(15,23,42,0.6); border: 1px solid var(--card-border); color: white; padding: 0.5rem 0.75rem; border-radius: 8px; font-family: inherit;">
+                    </div>
+                </div>
+                <div class="card-large">
+                    <div class="avail-legend">
+                        <span class="avail-dot avail-busy"></span><span>Meşgul</span>
+                        <span class="avail-dot avail-free"></span><span>Boş</span>
+                        <span class="avail-dot avail-restricted"></span><span>Kısıtlı</span>
+                    </div>
+                    <div id="availability-grid" style="margin-top: 1.5rem;">
+                        <p style="color: var(--text-muted); text-align: center;">Bir tarih seçin...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Kısıt Yönetimi Section -->
+            <section id="section-constraints" class="content-section hidden admin-only">
+                <div class="section-header">
+                    <h2>Gözetmen Kısıt Yönetimi</h2>
+                    <p style="color: var(--text-muted); font-size: 0.875rem;">Hocaların ders saatlerini veya özel izin günlerini buradan yönetebilirsiniz.</p>
+                </div>
+
+                <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; align-items: start;">
+                    <!-- Sol: Seçim ve Ekleme -->
+                    <div class="card-large">
+                        <h3 style="margin-bottom: 1rem;">Yeni Kısıt Ekle</h3>
+                        <form id="form-add-constraint">
+                            <div class="form-group">
+                                <label>Gözetmen Seçin</label>
+                                <select id="constraint-staff-select" required style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; color: white;"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Kısıt Tipi</label>
+                                <select id="constraint-type" style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; color: white;">
+                                    <option value="day">Haftalık Gün (Ders vb.)</option>
+                                    <option value="date">Özel Tarih (İzin vb.)</option>
+                                </select>
+                            </div>
+                            <div id="constraint-day-group" class="form-group">
+                                <label>Gün</label>
+                                <select id="constraint-day" style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; color: white;">
+                                    <option value="1">Pazartesi</option>
+                                    <option value="2">Salı</option>
+                                    <option value="3">Çarşamba</option>
+                                    <option value="4">Perşembe</option>
+                                    <option value="5">Cuma</option>
+                                    <option value="6">Cumartesi</option>
+                                    <option value="0">Pazar</option>
+                                </select>
+                            </div>
+                            <div id="constraint-date-group" class="form-group hidden">
+                                <label>Tarih</label>
+                                <input type="date" id="constraint-date" style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; color: white;">
+                            </div>
+                            <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div class="form-group">
+                                    <label>Başlangıç</label>
+                                    <input type="time" id="constraint-start" value="08:30" required style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; color: white;">
+                                </div>
+                                <div class="form-group">
+                                    <label>Bitiş</label>
+                                    <input type="time" id="constraint-end" value="17:30" required style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; color: white;">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn-primary" style="width: 100%; margin-top: 1rem;">Ekle</button>
+                        </form>
+                    </div>
+
+                    <!-- Sağ: Liste -->
+                    <div class="card-large">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h3 id="current-constraints-title">Mevcut Kısıtlar</h3>
+                        </div>
+                        <div class="table-container">
+                            <table id="table-constraints">
+                                <thead>
+                                    <tr>
+                                        <th>Tip / Zaman</th>
+                                        <th>Saat Aralığı</th>
+                                        <th style="text-align: right;">İşlem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:2rem;">Lütfen bir gözetmen seçin...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Floating Modal for Adding Items -->
+        <div id="modal" class="modal hidden">
+            <div class="modal-content">
+                <h2 id="modal-title">Yeni Kayıt</h2>
+                <form id="modal-form">
+                    <div id="form-fields"></div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" id="btn-modal-cancel">İptal</button>
+                        <button type="submit" class="btn-primary">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Bireysel Personel Takvimi Modalı -->
+        <div id="modal-staff-schedule" class="modal hidden">
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="section-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                    <h2 id="staff-name-title">Personel Sınav Programı</h2>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="btn-export-individual-schedule" class="btn-primary" style="background:#28a745;">Resim İndir</button>
+                        <button id="btn-close-individual-modal" class="btn-secondary">Kapat</button>
+                    </div>
+                </div>
+                <div id="individual-schedule-card" class="card-large" style="padding: 30px; background: #0f172a; border: 2px solid #334155;">
+                    <div style="text-align: center; margin-bottom: 25px; border-bottom: 1px solid #334155; padding-bottom: 15px;">
+                        <h1 id="individual-proctor-name" style="margin: 0; color: #6366f1;">Hoca Adı</h1>
+                        <p style="color: #94a3b8; margin: 5px 0;">Bireysel Sınav Görev Takvimi</p>
+                    </div>
+                    <div class="table-container">
+                        <table id="table-individual-schedule">
+                            <thead>
+                                <tr>
+                                    <th>Ders / Sınav</th>
+                                    <th>Derslik / Yer</th>
+                                    <th>Tarih</th>
+                                    <th>Saat</th>
+                                    <th>Süre</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sınav Detay Modalı -->
+        <div id="modal-exam-detail" class="modal hidden">
+            <div class="modal-content" style="max-width: 700px;">
+                <div class="section-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                    <h2 id="exam-detail-title">Sınav Detayı</h2>
+                    <button id="btn-close-exam-detail" class="btn-secondary">Kapat</button>
+                </div>
+                <div id="exam-detail-info" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px;"></div>
+                <h3 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 12px;">Atanmış Gözetmenler</h3>
+                <div class="table-container">
+                    <table id="table-exam-proctors">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Gözetmen</th>
+                                <th>Toplam Puan</th>
+                                <th>Görev Sayısı</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+            </div>
+        </div>
+
+        <!-- Floating Modal for Editing Exams -->
+        <div id="edit-modal" class="modal hidden admin-only">
+            <div class="modal-content">
+                <h2>Sınav Düzenle</h2>
+                <form id="edit-modal-form">
+                    <input type="hidden" id="edit-exam-id">
+                    <div class="form-group">
+                        <label>Ders / Sınav Adı</label>
+                        <input type="text" id="edit-exam-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Derslik / Yer Bilgisi</label>
+                        <input type="text" id="edit-exam-location" placeholder="Örn: Amfi 2">
+                    </div>
+                    <div class="form-group">
+                        <label>Sınav Tarihi</label>
+                        <input type="date" id="edit-exam-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Başlangıç Saati</label>
+                        <input type="time" id="edit-exam-time" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Süre (Dakika)</label>
+                        <input type="number" id="edit-exam-duration" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Gözetmen</label>
+                        <select id="edit-exam-proctor" required style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--card-border); padding: 0.75rem; border-radius: 8px; color: white;"></select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="document.getElementById('edit-modal').classList.add('hidden')">İptal</button>
+                        <button type="submit" class="btn-primary">Güncelle</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Excel Import Modali -->
+    <div id="modal-import" class="modal hidden admin-only">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="section-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                <h2>📥 Excel’den İçe Aktar</h2>
+                <button class="btn-secondary" onclick="document.getElementById('modal-import').classList.add('hidden')">Kapat</button>
+            </div>
+            <div class="card-large" style="background:#0f172a; border:1px solid #334155;">
+                <p style="color:var(--text-muted); margin-bottom:1rem; font-size:0.875rem;">
+                    Excel dosyasınızı sisteme aktarın. Dosyanızın doğru formatta olması için önce şablonu indirin.
+                </p>
+                <div style="display:flex; gap:12px; margin-bottom:1.5rem; flex-wrap:wrap;">
+                    <button id="btn-download-staff-template" class="btn-secondary">Personel Şablonunu İndir</button>
+                    <button id="btn-download-exam-template" class="btn-secondary">Sınav Şablonunu İndir</button>
+                </div>
+                <div class="form-group">
+                    <label>Excel Dosyası Seçin (.xlsx)</label>
+                    <input type="file" id="import-file-input" accept=".xlsx,.xls" style="width:100%; background:rgba(15,23,42,0.5); border:1px solid var(--card-border); padding:0.75rem; border-radius:8px; color:white; font-family:inherit;">
+                </div>
+                <div id="import-preview" style="margin-top:1rem;"></div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="document.getElementById('modal-import').classList.add('hidden')">Vazgeç</button>
+                    <button id="btn-confirm-import" class="btn-primary" disabled>Aktarmayı Onayla</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    </div> <!-- app-wrapper sonu -->
+    <!-- GitHub Sync Modali -->
+    <div id="modal-github-sync" class="modal hidden">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="section-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                <h2>🔗 GitHub Senkronizasyon Kodu</h2>
+                <button class="btn-secondary" onclick="document.getElementById('modal-github-sync').classList.add('hidden')">Kapat</button>
+            </div>
+            <div class="card-large" style="background:#0f172a; border:1px solid #334155;">
+                <p style="color:var(--text-muted); margin-bottom:1rem; font-size:0.875rem;">
+                    Aşağıdaki kodu kopyalayın ve bilgisayarınızdaki <code>logic.js</code> dosyasının en başındaki <code>let DB = { ... };</code> kısmıyla değiştirin.
+                </p>
+                <textarea id="github-sync-code" readonly style="width:100%; height:300px; background:rgba(15,23,42,0.5); border:1px solid var(--card-border); padding:1rem; border-radius:8px; color:#10b981; font-family:'Courier New', Courier, monospace; font-size:0.875rem; resize: none; margin-bottom: 1.5rem;"></textarea>
+                <div class="form-actions">
+                    <button id="btn-copy-sync-code" class="btn-primary">📋 Kodu Kopyala</button>
+                    <button class="btn-secondary" onclick="document.getElementById('modal-github-sync').classList.add('hidden')">Kapat</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="logic.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
